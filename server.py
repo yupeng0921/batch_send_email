@@ -160,4 +160,3 @@ def index():
 if __name__ == u"__main__":
     app.debug = True
     app.run(host=u'0.0.0.0', port=80)
-            
