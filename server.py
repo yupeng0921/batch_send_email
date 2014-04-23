@@ -4,6 +4,7 @@ import os
 import time
 import yaml
 import re
+import codecs
 import ConfigParser
 import logging
 import traceback
@@ -15,7 +16,7 @@ default_pseudo_send_count = 3
 default_pattern_begin = u'\{\{'
 default_pattern_end = u'\}\}'
 def batch_send_email(sender_file_name, subject, emailbody_file_name, dest_file_name, actualsend):
-    with open(sender_file_name, u'r') as f:
+    with codecs.open(sender_file_name, u'r', u'utf-8') as f:
         conf = yaml.safe_load(f)
 
     if u'aws_access_key_id' not in conf:
@@ -49,7 +50,7 @@ def batch_send_email(sender_file_name, subject, emailbody_file_name, dest_file_n
     else:
         pattern_end = default_pattern_end
 
-    with open(emailbody_file_name) as f:
+    with codecs.open(emailbody_file_name, u'r', u'utf-8') as f:
         emailbody = f.read()
 
     if emailbody_file_name[-5:] == u'.html':
@@ -61,7 +62,7 @@ def batch_send_email(sender_file_name, subject, emailbody_file_name, dest_file_n
     conn = boto.ses.connect_to_region(region, aws_access_key_id = aws_access_key_id, aws_secret_access_key = aws_secret_access_key)
     ret = []
     send_count = 0
-    f = open(dest_file_name)
+    f = codecs.open(dest_file_name, u'r', u'utf-8')
     for eachline in f:
         tmpbody = emailbody
         items = eachline.split(u',')
