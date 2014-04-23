@@ -21,13 +21,26 @@
 		<label for="sender">sender</label>
 		<input type="file" id="sender" name="sender">
 	  </div>
+	  <div class="row">
+		<div class="col-md-4">
+		  <div class="form-group">
+			<label for="subject">subject</label>
+			<input type="text" class="form-control" id="subject" name="subject" placeholder="subject">
+		  </div>
+		</div>
+	  </div>
 	  <div class="form-group">
 		<label for="emailbody">email body</label>
 		<input type="file" id="emailbody" name="emailbody">
 	  </div>
 	  <div class="form-group">
-		<label for="replacement">replacement</label>
-		<input type="file" id="replacement" name="replacement">
+		<label for="dest">dest</label>
+		<input type="file" id="dest" name="dest">
+	  </div>
+	  <div class="checkbox">
+		<label>
+		  <input type="checkbox" id="actualsend" name="actualsend" value="actualsend"> actual send
+		</label>
 	  </div>
 	  <button type="submit" class="btn btn-default" id="submit" name="submit">Submit</button>
 	</form>
