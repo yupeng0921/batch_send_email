@@ -2,100 +2,20 @@
 
 import os
 import time
+import sqlite3
 import yaml
 import re
 import codecs
-import ConfigParser
 import logging
-import traceback
 from flask import Flask, request, redirect, url_for, render_template, abort
 from werkzeug import secure_filename
-import boto.ses
 
-default_pseudo_send_count = 3
-default_pattern_begin = u'\{\{'
-default_pattern_end = u'\}\}'
-def batch_send_email(sender_file_name, subject, emailbody_file_name, dest_file_name, actualsend):
-    with codecs.open(sender_file_name, u'r', u'utf-8') as f:
-        conf = yaml.safe_load(f)
+with open(u'%s/conf.yaml' % os.path.dirname(__file__), u'r') as f:
+    conf = yaml.safe_load(f)
 
-    if u'aws_access_key_id' not in conf:
-        return u'no aws_access_key_id'
-    aws_access_key_id = conf[u'aws_access_key_id']
-
-    if u'aws_secret_access_key' not in conf:
-        return u'no aws_secret_access_key'
-    aws_secret_access_key = conf[u'aws_secret_access_key']
-
-    if u'region' not in conf:
-        return u'no region'
-    region = conf[u'region']
-
-    if u'email_address' not in conf:
-        return u'no email_address'
-    source = conf[u'email_address']
-
-    if u'pseudo_send_count' in conf:
-        pseudo_send_count = conf[u'pseudo_send_count']
-    else:
-        pseudo_send_count = default_pseudo_send_count
-
-    if u'pattern_begin' in conf:
-        pattern_begin = conf[u'pattern_begin']
-    else:
-        pattern_begin = default_pattern_begin
-
-    if u'pattern_end' in conf:
-        pattern_end = conf[u'pattern_end']
-    else:
-        pattern_end = default_pattern_end
-
-    with codecs.open(emailbody_file_name, u'r', u'utf-8') as f:
-        emailbody = f.read()
-
-    if emailbody_file_name[-5:] == u'.html':
-        format = u'html'
-    elif emailbody_file_name[-4:] == u'.txt':
-        format = u'text'
-    else:
-        return u'unsupport format'
-    conn = boto.ses.connect_to_region(region, aws_access_key_id = aws_access_key_id, aws_secret_access_key = aws_secret_access_key)
-    ret = []
-    send_count = 0
-    f = codecs.open(dest_file_name, u'r', u'utf-8')
-    for eachline in f:
-        tmpbody = emailbody
-        items = eachline.split(u',')
-        if len(items) < 1:
-            continue
-        to_addresses = items[0].strip()
-        if not to_addresses:
-            continue
-        count = 1
-        for item in items[1:]:
-            item = item.strip()
-            m = u'%s%s%s' % (pattern_begin, count, pattern_end)
-            p = re.compile(m)
-            tmpbody, n = re.subn(p, item, tmpbody)
-            if n == 0:
-                info = u'mismatch %s %s %s' % (to_addresses, item, count)
-                ret.append(info)
-            count += 1
-        if actualsend:
-            if format == u'html':
-                conn.send_email(source, subject, None, to_addresses, format=format, return_path=source, html_body=tmpbody)
-            else:
-                conn.send_email(source, subject, None, to_addresses, format=format, return_path=source, text_body=tmpbody)
-        else:
-            if send_count < pseudo_send_count:
-                pseudo_subject = u'%s [%s]' % (subject, to_addresses)
-                if format == u'html':
-                    conn.send_email(source, pseudo_subject, None, source, format=format, return_path=source, html_body=tmpbody)
-                else:
-                    conn.send_email(source, pseudo_subject, None, source, format=format, return_path=source, text_body=tmpbody)
-        send_count += 1
-    ret.append(u'done, send %d' % send_count)
-    return ret
+db_path = conf[u'db_path']
+table_name = conf[u'table_name']
+magic_string = conf[u'magic_string']
 
 app = Flask(__name__)
 
@@ -103,6 +23,8 @@ upload_folder = u'upload'
 @app.route(u'/', methods=[u'GET', u'POST'])
 def index():
     if request.method == u'POST':
+        cx = sqlite3.connect(db_path)
+
         timestamp = u'%f' % time.time()
 
         sender = request.files[u'sender']
@@ -119,6 +41,9 @@ def index():
         if not subject:
             os.remove(sender_file_name)
             return u'no subject'
+        subject_file_name = os.path.join(upload_folder, u'%s.subject.txt' % timestamp)
+        with codecs.open(subject_file_name, u'w', u'utf-8') as f:
+            f.write(subject)
 
         emailbody = request.files[u'emailbody']
         if not emailbody:
@@ -151,12 +76,45 @@ def index():
             actualsend = True
         else:
             actualsend = False
-        ret = batch_send_email(sender_file_name, subject, emailbody_file_name, dest_file_name, actualsend)
-        os.remove(sender_file_name)
-        os.remove(emailbody_file_name)
-        os.remove(dest_file_name)
-        return u'%s' % ret
-    return render_template(u'index.html')
+
+        cu = cx.cursor()
+        cmd = u'delete from %s where magic_string="%s" and status="done"' % \
+            (table_name, magic_string)
+        cu.execute(cmd)
+        cx.commit()
+        status = u'waiting'
+        complete_count = 0
+        result_info = u'NA'
+        sender_file_name = os.path.abspath(sender_file_name)
+        subject_file_name = os.path.abspath(subject_file_name)
+        emailbody_file_name = os.path.abspath(emailbody_file_name)
+        dest_file_name = os.path.abspath(dest_file_name)
+        cmd = u'insert into %s values("%s", "%s", "%s", "%s", "%s", %d, "%s", %d, "%s")' % \
+            (table_name, magic_string, sender_file_name, subject_file_name, emailbody_file_name, \
+                 dest_file_name, actualsend, status, complete_count, result_info)
+        try:
+            cu.execute(cmd)
+            cx.commit()
+        except Exception, e:
+            cu.close()
+            cx.close()
+            return e
+        cu.close()
+        cx.close()
+        return redirect(url_for(u'index'))
+    cx = sqlite3.connect(db_path)
+    cu = cx.cursor()
+    cmd = u'select status, complete_count, result_info from %s where magic_string="%s"' % \
+        (table_name, magic_string)
+    cu.execute(cmd)
+    ret = cu.fetchone()
+    if ret:
+        info = u'status: %s\ncomplete_count: %d\n%s' % ret
+    else:
+        info = u'NA'
+    cu.close()
+    cx.close()
+    return render_template(u'index.html', status=info)
 
 if __name__ == u"__main__":
     app.debug = True

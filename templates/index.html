@@ -8,6 +8,15 @@
 	<meta name="author" content="">
 	<link rel="shortcut icon" href="/static/img/favicon.png">
 
+	<script type="text/javascript" src="/static/js/jquery-latest.js"></script>
+	<script type="text/javascript">
+	  setInterval("refresh_status();",1000);
+	  function refresh_status(){
+	  $('#status').load(location.href + ' #status');
+	  }
+	</script>
+		
+
 	<title> sending email</title>
 
 	<!-- Bootstrap core CSS -->
@@ -44,6 +53,10 @@
 	  </div>
 	  <button type="submit" class="btn btn-default" id="submit" name="submit">Submit</button>
 	</form>
-	
+
+	<p></p>
+	<div id="status">
+	  <textarea readonly class="form-control" rows="8">{{status}}</textarea>
+	</div>
   </body>
 </html>

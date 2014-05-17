@@ -1,0 +1,10 @@
+db_path: /tmp/email_sender.db
+table_name: task
+magic_string: email_task
+stdin_path: /tmp/stdin
+stdout_path: /tmp/stdout
+stderr_path: /tmp/stderr
+pidfile_path: /tmp/pidfile
+pidfile_timeout: 5
+log_file: /tmp/log
+daemon_interval: 1
