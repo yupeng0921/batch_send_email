@@ -25,11 +25,20 @@ pidfile_path = conf[u'pidfile_path']
 pidfile_timeout = conf[u'pidfile_timeout']
 log_file = conf[u'log_file']
 daemon_interval = conf[u'daemon_interval']
+do_test = conf[u'do_test']
+
+def test_send_email(source, subject, body, to_addresses, format, reply_addresses, return_path, text_body=None, html_body=None):
+    logging.info("**********************test************************")
+    logging.info(u'test: %s %s %s %s %s %s %s %s %s' % (unicode(source), unicode(subject), unicode(body), \
+                     unicode(to_addresses), unicode(format), unicode(reply_addresses), unicode(return_path), \
+                     unicode(text_body), unicode(html_body)))
+    time.sleep(0.2)
 
 default_pseudo_send_count = 3
 default_pattern_begin = u'\{\{'
 default_pattern_end = u'\}\}'
 default_update_interval = 100
+default_ignore_mismatch = 0
 def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, dest_file_name, actualsend, update_count):
     with codecs.open(sender_file_name, u'r', u'utf-8') as f:
         conf1 = yaml.safe_load(f)
@@ -70,6 +79,11 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
     else:
         update_interval = default_update_interval
 
+    if u'ignore_mismatch' in conf1:
+        ignore_mismatch = conf1[u'ignore_mismatch']
+    else:
+        ignore_mismatch = default_ignore_mismatch
+
     with codecs.open(subject_file_name, u'r', u'utf-8') as f:
         subject = f.read()
 
@@ -95,6 +109,7 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
         if not to_addresses:
             continue
         count = 1
+        mismatch = False
         for item in items[1:]:
             item = item.strip()
             m = u'%s%s%s' % (pattern_begin, count, pattern_end)
@@ -103,20 +118,31 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
             if n == 0:
                 info = u'mismatch %s %s %s' % (to_addresses, item, count)
                 ret.append(info)
+                mismatch = True
             count += 1
+        if mismatch and (not ignore_mismatch):
+            continue
+        if do_test:
+            send_email = test_send_email
+        else:
+            send_email = conn.send_email
         try:
             if actualsend:
                 if format == u'html':
-                    conn.send_email(source, subject, None, to_addresses, format=format, return_path=source, html_body=tmpbody)
+                    send_email(source, subject, None, \
+                                   to_addresses, format=format, reply_addresses=source, return_path=source, html_body=tmpbody)
                 else:
-                    conn.send_email(source, subject, None, to_addresses, format=format, return_path=source, text_body=tmpbody)
+                    send_email(source, subject, None, \
+                                   to_addresses, format=format, reply_addresses=source, return_path=source, text_body=tmpbody)
             else:
                 if send_count < pseudo_send_count:
                     pseudo_subject = u'%s [%s]' % (subject, to_addresses)
                     if format == u'html':
-                        conn.send_email(source, pseudo_subject, None, source, format=format, return_path=source, html_body=tmpbody)
+                        send_email(source, pseudo_subject, None, \
+                                       source, format=format, reply_addresses=source, return_path=source, html_body=tmpbody)
                     else:
-                        conn.send_email(source, pseudo_subject, None, source, format=format, return_path=source, text_body=tmpbody)
+                        send_email(source, pseudo_subject, None, \
+                                       source, format=format, reply_addresses=source, return_path=source, text_body=tmpbody)
         except Exception, e:
             ret.append(e)
         else:

@@ -98,18 +98,40 @@ def index():
         except Exception, e:
             cu.close()
             cx.close()
-            return e
+            return unicode(e)
         cu.close()
         cx.close()
         return redirect(url_for(u'index'))
     cx = sqlite3.connect(db_path)
     cu = cx.cursor()
-    cmd = u'select status, complete_count, result_info from %s where magic_string="%s"' % \
+    # cmd = u'select status, complete_count, result_info from %s where magic_string="%s"' % \
+    #     (table_name, magic_string)
+    cmd = u'select * from %s where magic_string="%s"' % \
         (table_name, magic_string)
     cu.execute(cmd)
     ret = cu.fetchone()
     if ret:
-        info = u'status: %s\ncomplete_count: %d\n%s' % ret
+        (m, sender_file_name, subject_file_name, emailbody_file_name, \
+                 dest_file_name, actualsend, status, complete_count, result_info) = ret
+        if status == u'done':
+            try:
+                os.remove(sender_file_name)
+            except Exception, e:
+                pass
+            try:
+                os.remove(subject_file_name)
+            except Exception, e:
+                pass
+            try:
+                os.remove(emailbody_file_name)
+            except Exception, e:
+                pass
+            try:
+                os.remove(dest_file_name)
+            except Exception, e:
+                pass
+        info = u'status: %s\ncomplete_count: %d\n%s' % \
+            (status, complete_count, result_info)
     else:
         info = u'NA'
     cu.close()
