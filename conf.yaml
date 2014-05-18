@@ -8,4 +8,5 @@ pidfile_path: /tmp/pidfile
 pidfile_timeout: 5
 log_file: /tmp/log
 daemon_interval: 1
-do_test: 1
+do_test: 0
+result_info_len: 1024

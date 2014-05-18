@@ -26,6 +26,7 @@ pidfile_timeout = conf[u'pidfile_timeout']
 log_file = conf[u'log_file']
 daemon_interval = conf[u'daemon_interval']
 do_test = conf[u'do_test']
+result_info_len = conf[u'result_info_len']
 
 def test_send_email(source, subject, body, to_addresses, format, reply_addresses, return_path, text_body=None, html_body=None):
     logging.info("**********************test************************")
@@ -58,6 +59,16 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
     if u'email_address' not in conf1:
         return u'no email_address'
     source = conf1[u'email_address']
+
+    if u'reply_addresses' in conf1:
+        reply_addresses = conf1[u'reply_addresses']
+    else:
+        reply_addresses = source
+
+    if u'return_path' in conf1:
+        return_path = conf1[u'return_path']
+    else:
+        return_path = reply_addresses
 
     if u'pseudo_send_count' in conf1:
         pseudo_send_count = conf1[u'pseudo_send_count']
@@ -100,7 +111,9 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
     ret = []
     send_count = 0
     f = codecs.open(dest_file_name, u'r', u'utf-8')
+    line_number = 0
     for eachline in f:
+        line_number += 1
         tmpbody = emailbody
         items = eachline.split(u',')
         if len(items) < 1:
@@ -130,21 +143,22 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
             if actualsend:
                 if format == u'html':
                     send_email(source, subject, None, \
-                                   to_addresses, format=format, reply_addresses=source, return_path=source, html_body=tmpbody)
+                                   to_addresses, format=format, reply_addresses=reply_addresses, return_path=return_path, html_body=tmpbody)
                 else:
                     send_email(source, subject, None, \
-                                   to_addresses, format=format, reply_addresses=source, return_path=source, text_body=tmpbody)
+                                   to_addresses, format=format, reply_addresses=reply_addresses, return_path=return_path, text_body=tmpbody)
             else:
                 if send_count < pseudo_send_count:
                     pseudo_subject = u'%s [%s]' % (subject, to_addresses)
                     if format == u'html':
                         send_email(source, pseudo_subject, None, \
-                                       source, format=format, reply_addresses=source, return_path=source, html_body=tmpbody)
+                                       source, format=format, reply_addresses=reply_addresses, return_path=return_path, html_body=tmpbody)
                     else:
                         send_email(source, pseudo_subject, None, \
-                                       source, format=format, reply_addresses=source, return_path=source, text_body=tmpbody)
+                                       source, format=format, reply_addresses=reply_addresses, return_path=return_path, text_body=tmpbody)
         except Exception, e:
-            ret.append(e)
+            msg = u'line number: %d\n%s' % (line_number, unicode(e))
+            ret.append(msg)
         else:
             send_count += 1
             if (send_count % update_interval) == 0:
@@ -155,7 +169,7 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
 
 class EmailSender():
     def __init__(self, stdin_path, stdout_path, stderr_path, pidfile_path, pidfile_timeout, \
-                     db_path, table_name, magic_string, log_file, daemon_interval):
+                     db_path, table_name, magic_string, log_file, daemon_interval, result_info_len):
         self.stdin_path = stdin_path
         self.stdout_path = stdout_path
         self.stderr_path = stderr_path
@@ -166,6 +180,7 @@ class EmailSender():
         self.magic_string = magic_string
         self.log_file = log_file
         self.daemon_interval = daemon_interval
+        self.result_info_len = result_info_len
     def run(self):
         format = '%(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s'
         datefmt='%Y-%m-%d %H:%M:%S'
@@ -181,7 +196,7 @@ class EmailSender():
             u'actualsend int,' + \
             u'status varchar(10),' + \
             u'complete_count int,' + \
-            u'result_info varchar(512)' + \
+            u'result_info varchar(%d)' % self.result_info_len + \
             u')'
         cu.execute(cmd)
         cu.close()
@@ -207,8 +222,11 @@ class EmailSender():
                                      dest_file_name, actualsend, self.update_count)
             except Exception, e:
                 info = e
-            cmd = u''
-            cmd = 'update %s set status="done", result_info="%s" where magic_string = "%s"' % \
+            info = unicode(info)
+            if len(info) >= self.result_info_len:
+                info = info[0:self.result_info_len]
+            info = info.replace(u'"',u'')
+            cmd = u'''update %s set status="done", result_info="%s" where magic_string = "%s"''' % \
                 (self.table_name, info, self.magic_string)
             logging.info(u'set to done, cmd: %s' % cmd)
             cu.execute(cmd)
@@ -226,7 +244,7 @@ class EmailSender():
         cx.close()
 
 email_sender = EmailSender(stdin_path, stdout_path, stderr_path, pidfile_path, pidfile_timeout, \
-                               db_path, table_name, magic_string, log_file, daemon_interval)
+                               db_path, table_name, magic_string, log_file, daemon_interval, result_info_len)
 
 daemon_runner = runner.DaemonRunner(email_sender)
 daemon_runner.do_action()

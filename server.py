@@ -110,6 +110,7 @@ def index():
         (table_name, magic_string)
     cu.execute(cmd)
     ret = cu.fetchone()
+    print(ret)
     if ret:
         (m, sender_file_name, subject_file_name, emailbody_file_name, \
                  dest_file_name, actualsend, status, complete_count, result_info) = ret
