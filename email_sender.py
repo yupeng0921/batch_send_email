@@ -157,7 +157,8 @@ def batch_send_email(sender_file_name, subject_file_name, emailbody_file_name, d
                         send_email(source, pseudo_subject, None, \
                                        source, format=format, reply_addresses=reply_addresses, return_path=return_path, text_body=tmpbody)
         except Exception, e:
-            msg = u'line number: %d\n%s' % (line_number, unicode(e))
+            # msg = u'line number: %d\n%s' % (line_number, unicode(e))
+            msg = u'line number: %d' % line_number
             ret.append(msg)
         else:
             send_count += 1
